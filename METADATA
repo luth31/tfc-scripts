@@ -2,7 +2,7 @@
 	"scripts": [{
 		"name": "TNT Run",
 		"core": "Eluna",
-		"min_revision": "327c377c9167b2a6edcb2de0102923e6b74bd00d",
+		"base_commit": "327c377c9167b2a6edcb2de0102923e6b74bd00d",
 		"files": [
 			"tnt_run.cpp"
 		],
