@@ -24,77 +24,97 @@
 #include <iostream>
 #include <unordered_map>
 
-class TNTRun {
+class TNTRunEvent {
 public:
-    TNTRun(uint32 platformEntry, Position const& pos, uint32 mapId, uint32 size) : platformEntry(platformEntry), posX(pos.GetPositionX()), posY(pos.GetPositionY()), posZ(pos.GetPositionZ()), posO(pos.GetOrientation()), size(size) {
+    struct EventSize {
+        uint8 sizeX;
+        uint8 sizeY;
+        uint8 levels;
+        float platformOffsetX;
+        float platformOffsetY;
+        float levelOffsetZ;
+    };
+
+    enum EventState {
+        EVENT_NOTSTARTED,
+        EVENT_STARTING,
+        EVENT_INPROGRESS,
+        EVENT_FINISHED
+    };
+    TNTRunEvent(uint32 platformEntry, Position const& pos, uint32 mapId, EventSize size, std::list<Player*> players) : baseObjectEntry(platformEntry), spawnPoint(pos), sizes(size), eventParticipants(players) {
         map = sMapMgr->FindMap(mapId, 0);
-        started = false;
+        state = EVENT_NOTSTARTED;
     }
 
     void Start() {
-        if (started == true)
-            return;
-        SpawnPlatforms();
-        started = true;
+        if (state == EVENT_NOTSTARTED) {
+            SpawnPlatforms();
+            state = EVENT_INPROGRESS;
+        }
     }
 
-    void Stop() {
-        if (started == false)
-            return;
-        for (auto p : platforms) {
-            if (!p)
-                continue;
+    // Method called by each platform object before despawning; removes the object from the platforms internal list
+    void ReportDespawn(GameObject* go) {
+        auto it = std::find(platformsList.begin(), platformsList.end(), go);
+        if (it != platformsList.end())
+            platformsList.erase(it);
+    }
+
+    ~TNTRunEvent() {
+        for (auto p : platformsList) {
+            // Disable object respawn; stops some bugs with the map object removelist
             p->SetRespawnTime(0);
+            // Queue the object for deletion and deallocation
             p->Delete();
         }
-        platforms.clear();
-        started = false;
-    }
-
-    void RegisterDespawn(GameObject* go) {
-        auto it = std::find(platforms.begin(), platforms.end(), go);
-        if (it != platforms.end())
-            platforms.erase(it);
-    }
-
-    ~TNTRun() {
-        Stop();
     }
 private:
+    // Generate the platforms
     void SpawnPlatforms() {
-        for (uint8 i = 0; i < size; ++i) {
-            for (uint8 j = 0; j < size; ++j) {
-                // Change the 0, 10, 20 to change height between platforms
-                SpawnPlatform(-(1.5 * j), -(1.5 * i), 0);
-                SpawnPlatform(-(1.5 * j), -(1.5 * i), 10);
-                SpawnPlatform(-(1.5 * j), -(1.5 * i), 20);
-            }
-        }
+        for (uint8 _Z = 0; _Z < sizes.levels; ++_Z)
+            for (uint8 _Y = 0; _Y < sizes.sizeX; ++_Y)
+                for (uint8 _X = 0; _X < sizes.sizeY; ++_X) {
+                    // Create a Position using the current platform height, row and column offsets
+                    Position offsetd(_X * sizes.platformOffsetX, _Y * sizes.platformOffsetY, _Z * sizes.levelOffsetZ, 0);
+                    // Sum up the base spawn point coords to the offset to get the offseted value for the current platform
+                    offsetd.m_positionX += spawnPoint.GetPositionX();
+                    offsetd.m_positionY += spawnPoint.GetPositionY();
+                    offsetd.m_positionZ += spawnPoint.GetPositionZ();
+                    // Spawn platform using the offset'ed spawnPoint value
+                    SpawnPlatform(offsetd);
+                } 
     }
-    void SpawnPlatform(float offsetX, float offsetY, float offsetZ) {
+
+    void SpawnPlatform(Position const& pos) {
+        // Create a new gameobject
         GameObject* object = new GameObject;
+        // Generate a new map GUID for it
         uint32 guidLow = map->GenerateLowGuid<HighGuid::GameObject>();
-        QuaternionData rot = QuaternionData::fromEulerAnglesZYX(posO, 0.f, 0.f);
-        if (!object->Create(guidLow, platformEntry, map, PHASEMASK_NORMAL, Position(posX + offsetX, posY + offsetY, posZ + offsetZ, posO), rot, 0, GO_STATE_READY))
+        QuaternionData rot = QuaternionData::fromEulerAnglesZYX(spawnPoint.GetOrientation(), 0.f, 0.f);
+        // Create object and update fields based on gameobject data
+        if (!object->Create(guidLow, baseObjectEntry, map, PHASEMASK_NORMAL, pos, rot, 0, GO_STATE_READY))
         {
+            // Deallocate the object in case of failure and return
             delete object;
             return;
         }
+        // Adds the worldobject to the map
         map->AddToMap(object);
-        platforms.push_back(object);
+        // Keep track of the each platform in platformList
+        platformsList.push_back(object);
     }
-    float posX;
-    float posY;
-    float posZ;
-    float posO;
-    bool started;
-    Map* map;
-    uint32 platformEntry;
-    std::vector<GameObject*> platforms;
-    uint32 size;
+
+    float heightOffset; // The height between the 3 platforms
+    Position spawnPoint; // The center of the upmost left platform; starting point of event grids generation
+    Map* map; // MapID where event will be located
+    uint32 baseObjectEntry; // entryID of the gameobject used to generate the platforms
+    std::vector<GameObject*> platformsList; // List of all 
+    EventSize sizes; // Struct containing all sizes
+    EventState state; // Current event state
+    std::list<Player*> eventParticipants;
 };
 
-TNTRun* t = nullptr;
+static TNTRunEvent* tntRunEvent = nullptr;
 
 class TNTPlatform : public GameObjectScript {
 public:
