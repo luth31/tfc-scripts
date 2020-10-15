@@ -1,11 +1,23 @@
 {
-	"scripts": [{
-		"name": "TNT Run",
-		"core": "Eluna",
-		"base_commit": "327c377c9167b2a6edcb2de0102923e6b74bd00d",
-		"files": [
-			"tnt_run.cpp"
-		],
-		"licensee": "The Forgotten Crusade (theforgottencrusade.com)"
-	}]
+	"scripts": [
+		{
+			"name": "TNT Run",
+			"core": "Eluna",
+			"base_commit": "327c377c9167b2a6edcb2de0102923e6b74bd00d",
+			"files": [
+				"tnt_run.cpp"
+			],
+			"licensee": "The Forgotten Crusade (theforgottencrusade.com)"
+		},
+		{
+			"name": "CustomConfigManager",
+			"core": "Eluna",
+			"base_commit": "327c377c9167b2a6edcb2de0102923e6b74bd00d",
+			"files": [
+				"custom_config.h",
+				"custom_config.cpp"
+			],
+			"licensee": "The Forgotten Crusade (theforgottencrusade.com)"
+		}
+	]
 }
