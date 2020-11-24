@@ -1,15 +1,19 @@
-#include "custom_config.h"
+#include "CustomConfig.h"
 #include "DatabaseEnv.h"
 #include "ScriptMgr.h"
 #include <unordered_map>
 #include <boost/lexical_cast.hpp>
+
+using std::vector;
+using std::pair;
+using std::string;
 
 CustomConfigManager* CustomConfigManager::getInstance() {
     static CustomConfigManager instance;
     return &instance;
 }
 
-uint32 CustomConfigManager::GetUInt32(std::string key, uint32 defaultValue) {
+uint32 CustomConfigManager::GetUInt32(string key, uint32 defaultValue) {
     auto value = GetValueForKey(key);
     if (value == configMap.end())
         return defaultValue;
@@ -21,7 +25,7 @@ uint32 CustomConfigManager::GetUInt32(std::string key, uint32 defaultValue) {
     }
 }
 
-int32 CustomConfigManager::GetInt32(std::string key, uint32 defaultValue) {
+int32 CustomConfigManager::GetInt32(string key, uint32 defaultValue) {
     auto value = GetValueForKey(key);
     if (value == configMap.end())
         return defaultValue;
@@ -34,14 +38,14 @@ int32 CustomConfigManager::GetInt32(std::string key, uint32 defaultValue) {
 }
 
 
-std::string CustomConfigManager::GetString(std::string key, std::string defaultValue) {
+string CustomConfigManager::GetString(string key, string defaultValue) {
     auto value = GetValueForKey(key);
     if (value == configMap.end())
         return defaultValue;
     return value->second;
 }
 
-double CustomConfigManager::GetDouble(std::string key, double defaultValue) {
+double CustomConfigManager::GetDouble(string key, double defaultValue) {
     auto value = GetValueForKey(key);
     if (value == configMap.end())
         return defaultValue;
@@ -53,13 +57,25 @@ double CustomConfigManager::GetDouble(std::string key, double defaultValue) {
     }
 }
 
+vector<pair<string,string>> CustomConfigManager::BatchGetString(vector<string> keys) {
+    vector<pair<string, string>> result;
+    for (auto it = keys.begin(); it != keys.end(); ++it) {
+        auto value = configMap.find(*it);
+        if (value == configMap.end())
+            result.push_back({ *it, "" });
+        else
+            result.push_back({ *it, value->second });
+    }
+    return result;
+}
+
 void CustomConfigManager::ReloadConfig() {
     configMap.clear();
     QueryResult result = WorldDatabase.PQuery("SELECT name,value FROM custom_config");
     if (result) {
         do {
             Field* fields = result->Fetch();
-            std::pair<std::string, std::string> configEntry;
+            pair<string, string> configEntry;
             configEntry.first = fields[0].GetString();
             configEntry.second = fields[1].GetString();
             configMap.insert(configEntry);
@@ -67,7 +83,7 @@ void CustomConfigManager::ReloadConfig() {
     }
 }
 
-ConfigMap::const_iterator CustomConfigManager::GetValueForKey(std::string key) {
+ConfigMap::const_iterator CustomConfigManager::GetValueForKey(string key) {
     return configMap.find(key);
 }
 

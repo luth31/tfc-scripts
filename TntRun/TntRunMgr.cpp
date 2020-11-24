@@ -1,7 +1,8 @@
-#include "custom_config.h"
+#include "../CustomConfig/CustomConfig.h"
 #include "Log.h"
 #include "ObjectMgr.h"
 #include "MapManager.h"
+#include "GameTime.h"
 #include "TntRunMgr.h"
 #include "World.h"
 
@@ -10,13 +11,15 @@ TNTRunMgr* TNTRunMgr::instance() {
     return &instance;
 }
 
-TNTRunMgr::TNTRunMgr() : _badConfig(false), _event(nullptr) {
+TNTRunMgr::TNTRunMgr() : _badConfig(false) {
     LoadSettings();
+    _queue.Init(_settings);
 }
 
 void TNTRunMgr::LoadSettings() {
     _settings.objectId = sCustomCfg->GetUInt32("tntrun.object.id", 800000);
-    _settings.map = sMapMgr->FindMap(sCustomCfg->GetUInt32("tntrun.mapid", 13), 0);
+    Map* map = sMapMgr->CreateBaseMap(sCustomCfg->GetUInt32("tntrun.mapid", 13));
+    _settings.map = map;
     _settings.origin = Position(sCustomCfg->GetDouble("tntrun.origin.x", 65.f),
         sCustomCfg->GetDouble("tntrun.origin.y", 95.f),
         sCustomCfg->GetDouble("tntrun.origin.z", -100.f),
@@ -29,6 +32,20 @@ void TNTRunMgr::LoadSettings() {
     _settings.offsetZ = sCustomCfg->GetDouble("tntrun.offset.z", 10.f);
     _settings.minPlayers = sCustomCfg->GetUInt32("tntrun.players.min", 5);
     _settings.maxPlayers = sCustomCfg->GetUInt32("tntrun.players.max", 10);
+    _settings.queueDelay = sCustomCfg->GetUInt32("tntrun.queue.delay", 60);
+    _settings.warmupTime = sCustomCfg->GetUInt32("tntrun.warmup", 10000);
+    _settings.maxX = (_settings.sizeX * _settings.offsetX / 2) + 30;
+    _settings.maxY = (_settings.sizeY * _settings.offsetY / 2) + 30;
+    _settings.maxZ = (_settings.levels * _settings.offsetZ) + 150;
+    Position temp = _settings.origin;
+    temp.m_positionX -= _settings.offsetX * (_settings.sizeX - 1);
+    temp.m_positionY -= _settings.offsetY * (_settings.sizeY - 1);
+    temp.m_positionZ += _settings.offsetZ * (_settings.levels -1);
+    _settings.center = Position(
+        (_settings.origin.GetPositionX() + temp.GetPositionX()) / 2,
+        (_settings.origin.GetPositionY() + temp.GetPositionY()) / 2,
+        (_settings.origin.GetPositionZ() + temp.GetPositionZ()) / 2,
+        0.f);
     ValidateSettings();
 }
 
@@ -46,64 +63,47 @@ void TNTRunMgr::ValidateSettings() {
         TC_LOG_ERROR("event.tntrun", "[TNTRunMgr::ValidateSettings] Min players > Max players OR Max players == 0", sCustomCfg->GetUInt32("tntrun.mapid", 13));
         _badConfig = true;
     }
+    if (_settings.levels == 0) {
+        TC_LOG_ERROR("event.tntrun", "[TNTRunMgr::ValidateSettings] Event can't have 0 levels!", sCustomCfg->GetUInt32("tntrun.mapid", 13));
+        _badConfig = true;
+    }
     if (_badConfig)
         UpdateState(TNTRun::State::EVENT_NOTREADY, "Invalid settings");
     else
         UpdateState(TNTRun::State::EVENT_READY, "Valid settings");
 }
 
-void TNTRunMgr::AddToQueue(Player* player) {
-    QueueResult temp;
-    AddToQueue(player, temp);
+bool TNTRunMgr::IsInQueue(Player* player) {
+    return _queue.IsInQueue(player);
 }
 
-void TNTRunMgr::RemoveFromQueue(Player* player) {
-    QueueResult temp;
-    RemoveFromQueue(player, temp);
-}
-
-void TNTRunMgr::AddToQueue(Player* player, QueueResult& result) {
+TNTRunQueue::Result TNTRunMgr::AddToQueue(Player* player) {
     switch (_state) {
-    case TNTRun::EVENT_READY:
-        if (IsInQueue(player)) {
-            result = QueueResult::QUEUE_ALREADYIN;
-            return;
-        }
-        if (_queue.size() >= _settings.maxPlayers) {
-            result = QueueResult::QUEUE_FULL;
-            return;
-        }
-        _queue.push_back(player);
-        result = QueueResult::QUEUE_JOINED;
-        CheckRequiredPlayers();
-        break;
     case TNTRun::State::EVENT_STARTING:
     case TNTRun::State::EVENT_INPROGRESS:
     case TNTRun::State::EVENT_FINISHED:
-        result = QueueResult::QUEUE_ALREADYSTARTED;
-        break;
+        return TNTRunQueue::Result::QUEUE_ALREADYSTARTED;
+    case TNTRun::State::EVENT_READY:
+        return _queue.AddToQueue(player);
+    case TNTRun::State::EVENT_NOTREADY:
     default:
-        result = QueueResult::QUEUE_DISABLED;
+        return TNTRunQueue::Result::QUEUE_DISABLED;
     }
 }
 
-void TNTRunMgr::RemoveFromQueue(Player* player, QueueResult& result) {
-    if (!IsInQueue(player)) {
-        result = QueueResult::QUEUE_NOTJOINED;
-        return;
-    }
-    _queue.erase(std::find(_queue.begin(), _queue.end(), player));
-    result = QueueResult::QUEUE_LEFT;
+TNTRunQueue::Result TNTRunMgr::RemoveFromQueue(Player* player) {
+    return _queue.RemoveFromQueue(player);
 }
 
-bool TNTRunMgr::IsInQueue(Player* player) {
-    auto result = std::find(_queue.begin(), _queue.end(), player);
-    if (result == _queue.end())
-        return false;
-    return true;
+TNTRun::Settings TNTRunMgr::GetSettings() {
+    return _settings;
 }
 
-void TNTRunMgr::UpdateState(TNTRun::State state, std::string reason = "") {
+TNTRun::State TNTRunMgr::GetEventState() {
+    return _state;
+}
+
+void TNTRunMgr::UpdateState(TNTRun::State state, std::string reason) {
     _state = state;
     switch (_state) {
     case TNTRun::State::EVENT_NOTREADY:
@@ -117,6 +117,8 @@ void TNTRunMgr::UpdateState(TNTRun::State state, std::string reason = "") {
         break;
     case TNTRun::State::EVENT_FINISHED:
         TC_LOG_INFO("event.tntrun", "[TNTRunMgr] Event state changed to EVENT_FINISHED. Reason: %s", reason);
+        StopEvent();
+        LoadSettings(); // Reload settings, will change state to READY or NOTREADY
         break;
     case TNTRun::State::EVENT_READY:
         TC_LOG_INFO("event.tntrun", "[TNTRunMgr] Event state changed to EVENT_READY. Reason: %s", reason);
@@ -126,18 +128,39 @@ void TNTRunMgr::UpdateState(TNTRun::State state, std::string reason = "") {
     }
 }
 
-void TNTRunMgr::CheckRequiredPlayers() {
-    if (_queue.size() >= _settings.maxPlayers)
-        StartEvent();
-    if (_queue.size() >= _settings.minPlayers)
-        // start timer
-        int x;
-}
-
-void TNTRunMgr::StartEvent() {
+void TNTRunMgr::StartEvent(std::vector<Player*> players) {
     if (_badConfig) {
         TC_LOG_ERROR("event.tntrun", "[TNTRunMgr::StartEvent()] _badConfig is true, this shouldn't happen!");
         return;
     }
-    _event = new TNTRun(_queue, _settings);
+    _event.UpdateSettings(_settings);
+    _event.Start(players);
+    sWorld->SendWorldText(3, "TNT Run Event started!");
+}
+
+void TNTRunMgr::StopEvent() {
+    sWorld->SendWorldText(3, "TNT Run Event stopped!");
+    _event.Stop();
+    UpdateState(TNTRun::State::EVENT_READY, "Stopped");
+}
+
+void TNTRunMgr::Update(uint32 diff) {
+    if (_state == TNTRun::State::EVENT_NOTREADY)
+        return;
+    _queue.Update(diff);
+    if (_state == TNTRun::State::EVENT_READY)
+        return;
+    _event.Update(diff);
+}
+
+void TNTRunMgr::HandlePlayerLogout(Player* player) {
+    _event.HandlePlayerLogout(player);
+}
+
+uint32 TNTRunMgr::GetQueueSize() {
+    return _queue.GetQueueSize();
+}
+
+uint32 TNTRunMgr::GetQueueTimeFor(Player* player) {
+    return _queue.GetQueueTime(player);
 }

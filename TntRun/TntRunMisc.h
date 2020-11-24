@@ -14,7 +14,7 @@ public:
         double collisionX;
         double collisionY;
         double collisionZ;
-        int32 timer;
+        uint32 timer;
     };
     TNTRunObject() : GameObjectScript("tnt_platform") { }
     struct tntrun_object_ai : public GameObjectAI {
@@ -22,7 +22,7 @@ public:
         void UpdateAI(uint32 diff) override;
         bool _triggered;
         TNTRunObject::Settings _settings;
-        TNTRun* _handler;
+        uint32 _timer;
     };
     GameObjectAI* GetAI(GameObject* go) const override { return new tntrun_object_ai(go); }
 };

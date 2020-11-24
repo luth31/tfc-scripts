@@ -17,7 +17,8 @@ public:
     int32 GetInt32(std::string key, uint32 defaultValue);
     std::string GetString(std::string key, std::string defaultValue);
     double GetDouble(std::string key, double defaultValue);
-
+    // Use these only for debugging
+    std::vector<std::pair<std::string, std::string>> BatchGetString(std::vector<std::string> keys);
     // Reloading
     void ReloadConfig();
 private:
