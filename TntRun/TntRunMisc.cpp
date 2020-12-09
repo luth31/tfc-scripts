@@ -45,7 +45,7 @@ void TNTRunObject::tntrun_object_ai::UpdateAI(uint32 diff) {
 
 bool TNTRunQueueNPC::tntrun_queuer_ai::GossipHello(Player* player) {
     auto settings = sTNTRunMgr->GetSettings();
-    std::
+
     AddGossipItemFor(player, GOSSIP_ICON_CHAT, Trinity::StringFormat("TNT Run\nIn queue: |cff3333ff%u/%u|r\nMinimum: |cffffff00%u|r\n", sTNTRunMgr->GetQueueSize(), settings.maxPlayers, settings.minPlayers), GOSSIP_SENDER_MAIN, 0);
     switch (sTNTRunMgr->GetEventState()) {
     case TNTRun::State::EVENT_STARTING:
@@ -109,9 +109,7 @@ bool TNTRunQueueNPC::tntrun_queuer_ai::GossipSelect(Player* player, uint32 /*men
 std::vector<ChatCommand> TNTRunCommands::GetCommands() const {
     static std::vector<ChatCommand> TNTRunCommands =
     {
-        {"status", rbac::RBAC_PERM_COMMAND_ACCOUNT, true, &HandleStatusCmd, "Shows the current status of the TNTRun event."},
         {"settings", rbac::RBAC_PERM_COMMAND_ACCOUNT, true, &HandleSettingsCmd, "Show current TNTRun settings."},
-
     };
     static std::vector<ChatCommand> commandTable =
     {

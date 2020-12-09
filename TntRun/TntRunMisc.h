@@ -43,9 +43,6 @@ public:
     TNTRunCommands() : CommandScript("tntrun_commands") { }
     std::vector<ChatCommand> GetCommands() const override;
     static bool HandleSettingsCmd(ChatHandler* handler, char const* /*args*/);
-    static bool HandleStatusCmd(ChatHandler* handler, char const* /*args*/);
-    static bool HandleStartCmd(ChatHandler* handler, char const* /*args*/);
-    static bool HandleStopCmd(ChatHandler* handler, char const* /*args*/);
 };
 
 class TNTRunQueueHelper : public PlayerScript {
