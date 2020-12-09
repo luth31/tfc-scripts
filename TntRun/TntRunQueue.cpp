@@ -49,7 +49,10 @@ std::unordered_map<Player*, uint32>::const_iterator TNTRunQueue::GetQueueIterFor
 }
 
 void TNTRunQueue::Handle() {
-    if (_queue.size() >= _minPlayers) {
+    if (_queue.size() >= _maxPlayers) {
+        ReportQueueReady();
+    }
+    else if (_queue.size() >= _minPlayers) {
         _timer.enabled = true;
         if (_timer.elapsed >= _queueDelay)
             ReportQueueReady();

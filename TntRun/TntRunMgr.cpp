@@ -34,14 +34,16 @@ void TNTRunMgr::LoadSettings() {
     _settings.maxPlayers = sCustomCfg->GetUInt32("tntrun.players.max", 10);
     _settings.queueDelay = sCustomCfg->GetUInt32("tntrun.queue.delay", 60);
     _settings.warmupTime = sCustomCfg->GetUInt32("tntrun.warmup", 10000);
-    _settings.maxX = (_settings.sizeX * _settings.offsetX / 2) + 30;
-    _settings.maxY = (_settings.sizeY * _settings.offsetY / 2) + 30;
-    _settings.maxZ = (_settings.levels * _settings.offsetZ) + 150;
+    _settings.reward_count = sCustomCfg->GetUInt32("tntrun.reward.count", 1);
+    _settings.reward_entry = sCustomCfg->GetUInt32("tntrun.reward.entry", 300000);
+    _playground.maxX = (_settings.sizeX * _settings.offsetX / 2) + 150;
+    _playground.maxY = (_settings.sizeY * _settings.offsetY / 2) + 150;
+    _playground.maxZ = (_settings.levels * _settings.offsetZ) + 150;
     Position temp = _settings.origin;
-    temp.m_positionX -= _settings.offsetX * (_settings.sizeX - 1);
-    temp.m_positionY -= _settings.offsetY * (_settings.sizeY - 1);
+    temp.m_positionX += _settings.offsetX * (_settings.sizeX - 1);
+    temp.m_positionY += _settings.offsetY * (_settings.sizeY - 1);
     temp.m_positionZ += _settings.offsetZ * (_settings.levels -1);
-    _settings.center = Position(
+    _playground.center = Position(
         (_settings.origin.GetPositionX() + temp.GetPositionX()) / 2,
         (_settings.origin.GetPositionY() + temp.GetPositionY()) / 2,
         (_settings.origin.GetPositionZ() + temp.GetPositionZ()) / 2,
@@ -67,10 +69,11 @@ void TNTRunMgr::ValidateSettings() {
         TC_LOG_ERROR("event.tntrun", "[TNTRunMgr::ValidateSettings] Event can't have 0 levels!", sCustomCfg->GetUInt32("tntrun.mapid", 13));
         _badConfig = true;
     }
-    if (_badConfig)
+    if (_badConfig) {
         UpdateState(TNTRun::State::EVENT_NOTREADY, "Invalid settings");
-    else
-        UpdateState(TNTRun::State::EVENT_READY, "Valid settings");
+    }
+    UpdateState(TNTRun::State::EVENT_READY, "Valid settings");
+    _event.UpdateSettings(_settings, _playground);
 }
 
 bool TNTRunMgr::IsInQueue(Player* player) {
@@ -129,12 +132,14 @@ void TNTRunMgr::UpdateState(TNTRun::State state, std::string reason) {
 }
 
 void TNTRunMgr::StartEvent(std::vector<Player*> players) {
+    LoadSettings();
     if (_badConfig) {
         TC_LOG_ERROR("event.tntrun", "[TNTRunMgr::StartEvent()] _badConfig is true, this shouldn't happen!");
+        sWorld->SendWorldText(3, "[TNTRun] Failed to start event. Report this error.");
         return;
     }
-    _event.UpdateSettings(_settings);
     _event.Start(players);
+    UpdateState(TNTRun::State::EVENT_STARTING, "TNTRunMgr::StartEvent()");
     sWorld->SendWorldText(3, "TNT Run Event started!");
 }
 

@@ -21,13 +21,14 @@ public:
     void HandlePlayerLogout(Player* player);
     uint32 GetQueueSize();
     uint32 GetQueueTimeFor(Player* player);
+    void LoadSettings();
 private:
     TNTRunMgr();
-    void LoadSettings();
     void ValidateSettings();
     
     TNTRunQueue _queue;
     TNTRun::Settings _settings;
+    TNTRun::Playground _playground;
     bool _badConfig;
     TNTRun _event;
     TNTRun::State _state;

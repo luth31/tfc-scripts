@@ -26,7 +26,10 @@ public:
         uint32 maxPlayers;
         uint32 queueDelay;
         uint32 warmupTime;
-        // automatically calculated
+        uint32 reward_entry;
+        uint32 reward_count;
+    };
+    struct Playground {
         double maxX;
         double maxY;
         double maxZ;
@@ -39,12 +42,13 @@ public:
         uint32 playerCount; // Starting player count
     };
     void Start(std::vector<Player*> players);
-    void UpdateSettings(Settings settings);
+    void UpdateSettings(Settings settings, Playground playground);
     void Stop();
     void Update(uint32 diff);
     void HandlePlayerLogout(Player* player);
 private:
     void SummonPlayers();
+    void RecallPlayer(Player* player);
     void SpawnObjects();
     void SpawnObjectAt(Position position);
     void ReportState(State state, std::string reason = "");
@@ -62,6 +66,7 @@ private:
     std::vector<Player*>::const_iterator GetSpectatorIterFor(Player* player);
     std::vector<GameObject*> _objects;
     Settings _settings;
+    Playground _playground;
     GameInfo _info;
     uint32 warmupTimer;
     uint32 _startTime;

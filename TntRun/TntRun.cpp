@@ -6,6 +6,7 @@
 #include "ScriptMgr.h"
 #include "WorldSession.h"
 #include "ScriptedGossip.h"
+#include "World.h"
 
 // --- Event control related methods ---
 // Start the event, called by TNTRunMgr
@@ -23,28 +24,36 @@ void TNTRun::Stop() {
         obj->Delete();
     }
     for (auto player : _info.players) {
-        player->Recall();
+        RecallPlayer(player);
     }
     for (auto player : _info.spectators) {
-        player->Recall();
+        RecallPlayer(player);
     }
     _info.players.clear();
     _info.spectators.clear();
+    _objects.clear();
 }
 
 // Updates settings, called by TNTRunMgr
-void TNTRun::UpdateSettings(Settings settings) {
+void TNTRun::UpdateSettings(Settings settings, Playground playground) {
     _settings = settings;
+    _playground = playground;
 }
 
 // Summon participants, called by TNTRun
 void TNTRun::SummonPlayers() {
     for (auto player : _info.players) {
         player->SaveRecallPosition();
-        Position pos = _settings.origin;
+        Position pos = _playground.center;
         pos.m_positionZ += _settings.offsetZ * (_settings.levels - 1) + 2;
         player->TeleportTo(WorldLocation(_settings.map->GetEntry()->MapID, pos));
     }
+}
+
+void TNTRun::RecallPlayer(Player* player) {
+    player->Recall();
+    if (player->isDead())
+        player->ResurrectPlayer(1.0f);
 }
 
 // Spawn platforms, called by TNTRun
@@ -133,7 +142,7 @@ void TNTRun::RunChecks(uint32 diff) {
             if ((*it)->IsBeingTeleported())
                 continue;
             if ((*it)->GetPositionZ() < _settings.origin.GetPositionZ()) {
-                Position pos = _settings.origin;
+                Position pos = _playground.center;
                 pos.m_positionZ += _settings.offsetZ * (_settings.levels - 1) + 2;
                 (*it)->TeleportTo(WorldLocation(_settings.map->GetEntry()->MapID, pos));
             }
@@ -151,41 +160,46 @@ void TNTRun::CheckWinCondition() {
         return;
     auto it = _info.players.begin();
     AnnounceToParticipants(Trinity::StringFormat("|cffff0000%s|r won the event!", (*it)->GetName()));
-    ReportState(State::EVENT_FINISHED, "Event finished.");
-    // Add reward; TODO: Fix hardcoding
-    (*it)->AddItem(300000, 1);
+    sWorld->SendWorldText(3, Trinity::StringFormat("|cffff0000%s|r won the TNT Run event!", (*it)->GetName()));
+    (*it)->AddItem(_settings.reward_entry, _settings.reward_count);
+    ReportState(State::EVENT_FINISHED, "Event completed.");
 }
 
 void TNTRun::CheckLeaversCount() {
     if (_info.leaversCount + 1 >= _info.playerCount / 2) {
         AnnounceToParticipants("Too many players left! Event cancelled.");
-        //TODO CANCEL EVENT
+        ReportState(State::EVENT_FINISHED, "Too many players left.");
     }
 }
 // Checks the postions of participants, will 
 void TNTRun::CheckPlayersPos() {
-    for (auto it = _info.spectators.begin(); it != _info.spectators.end(); ++it) {
+    auto it = _info.spectators.begin();
+    while (it != _info.spectators.end()) {
         if (!IsOnPlayground(*it)) {
-            (*it)->Recall();
-            _info.spectators.erase(it);
+            RecallPlayer(*it);
+            it = _info.spectators.erase(it);
         }
+        else
+            ++it;
     }
-    for (auto it = _info.players.begin(); it != _info.players.end(); ++it) {
-        // Player is not on the same map as the event, remove from event
+    it = _info.players.begin();
+    while (it != _info.players.end()) {
         if (!IsOnPlayground(*it)) {
             AnnounceToParticipants(Trinity::StringFormat("|cffff0000%s|r left the playground!", (*it)->GetName().c_str()));
-            _info.players.erase(it);
-            continue;
+            RecallPlayer(*it);
+            it = _info.players.erase(it);
         }
-        if ((*it)->GetPositionZ() < _settings.map->GetHeight(_settings.origin) + 1) {
-            (*it)->CastSpell((*it), 74490);
+        else if ((*it)->GetPositionZ() < _settings.map->GetHeight(_settings.origin) + 1) {
             AnnounceToParticipants(Trinity::StringFormat("%s just fell to his death!", (*it)->GetName().c_str()));
-            ClearGossipMenuFor((*it));
+            /*ClearGossipMenuFor((*it));
             AddGossipItemFor((*it), 1, "", (*it)->GetGUID().GetCounter(), 0, "Would you like to spectate?|n|cffff0000Warning:|r Going to far away from the platforms will remove you from the event!", 0, false);
             (*it)->PlayerTalkClass->GetGossipMenu().SetMenuId(537);
-            SendGossipMenuFor((*it), DEFAULT_GOSSIP_MESSAGE, (*it)->GetGUID());
-            _info.players.erase(it);
+            SendGossipMenuFor((*it), DEFAULT_GOSSIP_MESSAGE, (*it)->GetGUID());*/
+            RecallPlayer(*it);
+            it = _info.players.erase(it);
         }
+        else
+            ++it;
     }
 }
 
@@ -217,7 +231,7 @@ std::vector<Player*>::const_iterator TNTRun::GetSpectatorIterFor(Player* player)
 }
 
 bool TNTRun::IsOnPlayground(Player* player) {
-    if ((player->GetMap() != _settings.map) || (!player->IsWithinBox(_settings.center, _settings.maxX, _settings.maxY, _settings.maxZ)))
+    if ((player->GetMap() != _settings.map) || (!player->IsWithinBox(_playground.center, _playground.maxX, _playground.maxY, _playground.maxZ)))
         return false;
     return true;
 }
