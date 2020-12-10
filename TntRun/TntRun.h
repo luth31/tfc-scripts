@@ -28,6 +28,8 @@ public:
         uint32 warmupTime;
         uint32 reward_entry;
         uint32 reward_count;
+        uint32 pacify_spell;
+        uint32 anti_afk;
     };
     struct Playground {
         double maxX;
@@ -46,6 +48,7 @@ public:
     void Stop();
     void Update(uint32 diff);
     void HandlePlayerLogout(Player* player);
+    uint32 GetAliveCount();
 private:
     void SummonPlayers();
     void RecallPlayer(Player* player);
@@ -55,16 +58,15 @@ private:
     void CheckWarmup(uint32 diff);
     void RunChecks(uint32 diff);
     void AnnounceToParticipants(std::string msg);
-    // Checks
+    void CheckAFK(uint32 diff);
     bool IsOnPlayground(Player* player);
-    // Event conditions
     void CheckWinCondition();
     void CheckPlayersPos();
     void CheckLeaversCount();
-    // Iterator stuff
     std::vector<Player*>::const_iterator GetAliveIterFor(Player* player);
     std::vector<Player*>::const_iterator GetSpectatorIterFor(Player* player);
     std::vector<GameObject*> _objects;
+    std::unordered_map<Player*, std::pair<Position, uint32>> AntiAFK_data;
     Settings _settings;
     Playground _playground;
     GameInfo _info;

@@ -21,16 +21,18 @@ public:
     void Init(TNTRun::Settings settings);
     void Update(uint32 diff);
     uint32 GetQueueSize();
-    uint32 GetQueueTime(Player* player);
+    time_t GetQueueTime(Player* player);
+    int GetRemainingSeconds();
+    bool IsTimerRunning();
 private:
     struct Timer {
         uint32 elapsed;
         bool enabled;
     };
-    std::unordered_map<Player*, uint32>::const_iterator GetQueueIterFor(Player* player);
+    std::unordered_map<Player*, time_t>::const_iterator GetQueueIterFor(Player* player);
     void Handle();
     void ReportQueueReady();
-    std::unordered_map<Player*, uint32> _queue;
+    std::unordered_map<Player*, time_t> _queue;
     uint32 _minPlayers;
     uint32 _maxPlayers;
     uint32 _queueDelay;

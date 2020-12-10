@@ -20,12 +20,16 @@ public:
     void Update(uint32 diff);
     void HandlePlayerLogout(Player* player);
     uint32 GetQueueSize();
-    uint32 GetQueueTimeFor(Player* player);
+    time_t GetQueueTimeFor(Player* player);
     void LoadSettings();
+    uint32 GetQueueRemainingSeconds();
+    bool IsQueueTimerRunning();
+    uint32 GetAliveCount();
+    time_t GetEventStartTime();
 private:
     TNTRunMgr();
     void ValidateSettings();
-    
+    time_t _startTime;
     TNTRunQueue _queue;
     TNTRun::Settings _settings;
     TNTRun::Playground _playground;

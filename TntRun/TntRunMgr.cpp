@@ -32,10 +32,12 @@ void TNTRunMgr::LoadSettings() {
     _settings.offsetZ = sCustomCfg->GetDouble("tntrun.offset.z", 10.f);
     _settings.minPlayers = sCustomCfg->GetUInt32("tntrun.players.min", 5);
     _settings.maxPlayers = sCustomCfg->GetUInt32("tntrun.players.max", 10);
-    _settings.queueDelay = sCustomCfg->GetUInt32("tntrun.queue.delay", 60);
+    _settings.queueDelay = sCustomCfg->GetUInt32("tntrun.queue.delay", 60000);
     _settings.warmupTime = sCustomCfg->GetUInt32("tntrun.warmup", 10000);
     _settings.reward_count = sCustomCfg->GetUInt32("tntrun.reward.count", 1);
     _settings.reward_entry = sCustomCfg->GetUInt32("tntrun.reward.entry", 300000);
+    _settings.pacify_spell = sCustomCfg->GetUInt32("tntrun.pacify.id", 60778);
+    _settings.anti_afk = sCustomCfg->GetUInt32("tntrun.antiafk.timer", 3000);
     _playground.maxX = (_settings.sizeX * _settings.offsetX / 2) + 150;
     _playground.maxY = (_settings.sizeY * _settings.offsetY / 2) + 150;
     _playground.maxZ = (_settings.levels * _settings.offsetZ) + 150;
@@ -94,6 +96,22 @@ TNTRunQueue::Result TNTRunMgr::AddToQueue(Player* player) {
     }
 }
 
+uint32 TNTRunMgr::GetQueueRemainingSeconds() {
+    return _queue.GetRemainingSeconds();
+}
+
+bool TNTRunMgr::IsQueueTimerRunning() {
+    return _queue.IsTimerRunning();
+}
+
+uint32 TNTRunMgr::GetAliveCount() {
+    return _event.GetAliveCount();
+}
+
+time_t TNTRunMgr::GetEventStartTime() {
+    return _startTime;
+}
+
 TNTRunQueue::Result TNTRunMgr::RemoveFromQueue(Player* player) {
     return _queue.RemoveFromQueue(player);
 }
@@ -138,13 +156,12 @@ void TNTRunMgr::StartEvent(std::vector<Player*> players) {
         sWorld->SendWorldText(3, "[TNTRun] Failed to start event. Report this error.");
         return;
     }
+    _startTime = GameTime::GetGameTime();
     _event.Start(players);
     UpdateState(TNTRun::State::EVENT_STARTING, "TNTRunMgr::StartEvent()");
-    sWorld->SendWorldText(3, "TNT Run Event started!");
 }
 
 void TNTRunMgr::StopEvent() {
-    sWorld->SendWorldText(3, "TNT Run Event stopped!");
     _event.Stop();
     UpdateState(TNTRun::State::EVENT_READY, "Stopped");
 }
@@ -166,6 +183,6 @@ uint32 TNTRunMgr::GetQueueSize() {
     return _queue.GetQueueSize();
 }
 
-uint32 TNTRunMgr::GetQueueTimeFor(Player* player) {
+time_t TNTRunMgr::GetQueueTimeFor(Player* player) {
     return _queue.GetQueueTime(player);
 }

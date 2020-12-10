@@ -34,6 +34,7 @@ public:
         tntrun_queuer_ai(Creature* creature) : ScriptedAI(creature) { }
         bool GossipHello(Player* player) override;
         bool GossipSelect(Player* player, uint32 /*menuId*/, uint32 gossipListId) override;
+        void SendQueueMenu(Player* player);
     };
     CreatureAI* GetAI(Creature* creature) const override { return new tntrun_queuer_ai(creature); }
 };

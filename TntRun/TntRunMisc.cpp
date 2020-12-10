@@ -15,7 +15,7 @@ TNTRunObject::tntrun_object_ai::tntrun_object_ai(GameObject* go) : GameObjectAI(
     _settings.collisionX = sCustomCfg->GetDouble("tntrun.object.collisionX", 1.16f);
     _settings.collisionY = sCustomCfg->GetDouble("tntrun.object.collisionY", 1.14f);
     _settings.collisionZ = sCustomCfg->GetDouble("tntrun.object.collisionZ", 1.f);
-    _settings.timer = sCustomCfg->GetInt32("tntrun.object.decaytime", 1000);
+    _settings.timer = sCustomCfg->GetUInt32("tntrun.object.decaytime", 1000);
     _timer = 0;
 }
 
@@ -35,7 +35,6 @@ void TNTRunObject::tntrun_object_ai::UpdateAI(uint32 diff) {
     if (nearbyPlayers.empty())
         return;
     for (std::list<Player*>::const_iterator it = nearbyPlayers.begin(); it != nearbyPlayers.end(); ++it) {
-
         if ((*it)->IsWithinBox(me->GetPosition(), _settings.collisionX, _settings.collisionY, _settings.collisionZ)) {
             _triggered = true;
             return;
@@ -43,32 +42,47 @@ void TNTRunObject::tntrun_object_ai::UpdateAI(uint32 diff) {
     }
 }
 
-bool TNTRunQueueNPC::tntrun_queuer_ai::GossipHello(Player* player) {
-    auto settings = sTNTRunMgr->GetSettings();
-
-    AddGossipItemFor(player, GOSSIP_ICON_CHAT, Trinity::StringFormat("TNT Run\nIn queue: |cff3333ff%u/%u|r\nMinimum: |cffffff00%u|r\n", sTNTRunMgr->GetQueueSize(), settings.maxPlayers, settings.minPlayers), GOSSIP_SENDER_MAIN, 0);
+void TNTRunQueueNPC::tntrun_queuer_ai::SendQueueMenu(Player* player) {
+    CloseGossipMenuFor(player);
+    ClearGossipMenuFor(player);
+    auto settings = sTNTRunMgr->GetSettings();    
     switch (sTNTRunMgr->GetEventState()) {
+    case TNTRun::State::EVENT_READY: {
+        int in_queue = sTNTRunMgr->GetQueueSize();
+        int max_queue = settings.maxPlayers;
+        int min_queue = settings.minPlayers;
+        std::string queue_starting_time = "";
+        std::string queue_info = "";
+        std::string leave_queue_msg = "";
+        if (sTNTRunMgr->IsQueueTimerRunning())
+            queue_starting_time = Trinity::StringFormat("\nEvent will start in: |cffff0000%u|r seconds", sTNTRunMgr->GetQueueRemainingSeconds());
+        queue_info = Trinity::StringFormat("TNT Run\nIn Queue: |cff3333ff%u/%u|r\nMinimum: |cffffff00%u|r%s", in_queue, max_queue, min_queue, queue_starting_time);
+        AddGossipItemFor(player, GOSSIP_ICON_CHAT, queue_info, GOSSIP_SENDER_MAIN, 0);
+        if (sTNTRunMgr->IsInQueue(player)) {
+            leave_queue_msg = Trinity::StringFormat("In queue for |cffff0000%u|r seconds.|n|cffff0000Click to leave.|r", GameTime::GetGameTime() - sTNTRunMgr->GetQueueTimeFor(player));
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, leave_queue_msg, GOSSIP_SENDER_MAIN, 1);
+        }
+        else {
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Join queue.", GOSSIP_SENDER_MAIN, 2);
+        }
+    }
+        break;
     case TNTRun::State::EVENT_STARTING:
     case TNTRun::State::EVENT_INPROGRESS:
     case TNTRun::State::EVENT_FINISHED:
-        AddGossipItemFor(player, GOSSIP_ICON_CHAT, Trinity::StringFormat("TNT Run in progress!|nElapsed time: NOT IMPLEMENTED"), GOSSIP_SENDER_MAIN, 2);
+        AddGossipItemFor(player, GOSSIP_ICON_CHAT, Trinity::StringFormat("TNT Run in progress!\nElapsed time: |cffff0000%u|r seconds\nPlayers alive: |cff0033bb%u|r", GameTime::GetGameTime() - sTNTRunMgr->GetEventStartTime(), sTNTRunMgr->GetAliveCount()), GOSSIP_SENDER_MAIN, 0);
         if (player->IsGameMaster())
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "|cffff0000[GM]Stop event.|r", GOSSIP_SENDER_MAIN, 10);
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "|cffff0000[GM] Stop event.|r", GOSSIP_SENDER_MAIN, 1000);
         break;
-    case TNTRun::State::EVENT_READY:
-        if (sTNTRunMgr->IsInQueue(player)) {
-            std::string queueMsg = Trinity::StringFormat("In queue for |cffff0000%u|r seconds.|n|cffff0000Click to leave.|r", (GameTime::GetGameTime() - sTNTRunMgr->GetQueueTimeFor(player)));
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, queueMsg, GOSSIP_SENDER_MAIN, 100);
-        }
-        else
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Join queue.", GOSSIP_SENDER_MAIN, 1);
-        break;
-    case TNTRun::State::EVENT_NOTREADY:
     default:
-        AddGossipItemFor(player, GOSSIP_ICON_CHAT, "|cffff0000TNT Run is not available right now. Try again later.|r", GOSSIP_SENDER_MAIN, 3);
+        AddGossipItemFor(player, GOSSIP_ICON_CHAT, "|cffff0000TNT Run is not available right now. Try again later.|r", GOSSIP_SENDER_MAIN, 0);
     }
     player->TalkedToCreature(me->GetEntry(), me->GetGUID());
     SendGossipMenuFor(player, 1, me->GetGUID());
+}
+
+bool TNTRunQueueNPC::tntrun_queuer_ai::GossipHello(Player* player) {
+    SendQueueMenu(player);
     return true;
 }
 
@@ -77,32 +91,47 @@ bool TNTRunQueueNPC::tntrun_queuer_ai::GossipSelect(Player* player, uint32 /*men
     ClearGossipMenuFor(player);
     TNTRunQueue::Result result;
     switch (action) {
-    case 0:
-        break;
     case 1:
+        result = sTNTRunMgr->RemoveFromQueue(player);
+        switch (result) {
+        case TNTRunQueue::Result::QUEUE_LEFT:
+            player->GetSession()->SendAreaTriggerMessage("You have been removed from TNT Run queue!");
+            break;
+        case TNTRunQueue::Result::QUEUE_NOTJOINED:
+            player->GetSession()->SendAreaTriggerMessage("|cffff0000Couldn't unqueue you! You are not in TNT Run queue!|r");
+            break;
+        default:
+            player->GetSession()->SendAreaTriggerMessage("|cffff0000mUnknown error. Report to devs!|r");
+        }
+    case 2:
         result = sTNTRunMgr->AddToQueue(player);
-        if (result == TNTRunQueue::Result::QUEUE_JOINED)
-            player->GetSession()->SendAreaTriggerMessage("You have been queued for TNT Run!");
-        else
-            player->GetSession()->SendAreaTriggerMessage("|cffff0000Couldn't queue you! Report this message.|r");
+        switch (result) {
+        case TNTRunQueue::Result::QUEUE_JOINED:
+            player->GetSession()->SendAreaTriggerMessage("You have been queued up for TNT Run!");
+            break;
+        case TNTRunQueue::Result::QUEUE_FULL:
+            player->GetSession()->SendAreaTriggerMessage("|cffff0000Queue for TNT Run is full!|r");
+            break;
+        case TNTRunQueue::Result::QUEUE_ALREADYIN:
+            player->GetSession()->SendAreaTriggerMessage("You are already in queue for TNT Run!");
+            break;
+        case TNTRunQueue::Result::QUEUE_ALREADYSTARTED:
+            player->GetSession()->SendAreaTriggerMessage("|cffff0000You can't queue at this time. Game is in progress!|r");
+            break;
+        default:
+            player->GetSession()->SendAreaTriggerMessage("|cffff0000Unknown error. Report to devs!|r");
+            break;
+        }
+        CloseGossipMenuFor(player);
         break;
-    case 10:
+    case 1000:
         if (player->IsGameMaster()) {
             player->GetSession()->SendAreaTriggerMessage("|cffff0000Stopping event...|r");
             sTNTRunMgr->StopEvent();
         }
         break;
-    case 100:
-        result = sTNTRunMgr->RemoveFromQueue(player);
-        if (result == TNTRunQueue::Result::QUEUE_LEFT)
-            player->GetSession()->SendAreaTriggerMessage("You have been removed from TNT Run queue!");
-        else
-            player->GetSession()->SendAreaTriggerMessage("|cffff0000mCouldn't unqueue you! Report this message.|r");
-        break;
-    default:
-        player->GetSession()->SendAreaTriggerMessage("|cffff0000Unhandled case.|r");
     }
-    CloseGossipMenuFor(player);
+    SendQueueMenu(player);
     return true;
 }
 
@@ -134,31 +163,6 @@ bool TNTRunCommands::HandleSettingsCmd(ChatHandler* handler, char const* /*args*
     handler->PSendSysMessage("Offset X: |cff0066ff%f|r", settings.offsetX);
     handler->PSendSysMessage("Offset Y: |cff0066ff%f|r", settings.offsetY);
     handler->PSendSysMessage("Offset Z: |cff0066ff%f|r", settings.offsetZ);
-    return true;
-}
-
-bool TNTRunCommands::HandleStatusCmd(ChatHandler* handler, char const* /*args*/) {
-    std::string status = "Current TNTRun status: ";
-    switch (sTNTRunMgr->GetEventState()) {
-    case TNTRun::State::EVENT_READY:
-        status += "|cffffff00READY|r";
-        break;
-    case TNTRun::State::EVENT_STARTING:
-        status += "|cff00ccccSTARTING|r";
-        break;
-    case TNTRun::State::EVENT_INPROGRESS:
-        status += "|cff00ccccIN PROGRESS|r";
-        break;
-    case TNTRun::State::EVENT_FINISHED:
-        status += "|cff00ccccFINISHED|r";
-        break;
-    case TNTRun::State::EVENT_NOTREADY:
-        status += "|cff00ff00NOT READY|r";
-        break;
-    default:
-        status += "|cffff0000UNDEFINED - REPORT TO DEV|r";
-    }
-    handler->PSendSysMessage(status.c_str());
     return true;
 }
 

@@ -30,7 +30,7 @@ bool TNTRunQueue::IsInQueue(Player* player) {
 void TNTRunQueue::Init(TNTRun::Settings settings) {
     _minPlayers = settings.minPlayers;
     _maxPlayers = settings.maxPlayers;
-    _queueDelay = settings.queueDelay * 1000; // Seconds to microseconds
+    _queueDelay = settings.queueDelay; // Seconds to microseconds
     _active = true;
     _timer.elapsed = 0;
     _timer.enabled = false;
@@ -44,7 +44,7 @@ void TNTRunQueue::Update(uint32 diff) {
     Handle();
 }
 
-std::unordered_map<Player*, uint32>::const_iterator TNTRunQueue::GetQueueIterFor(Player* player) {
+std::unordered_map<Player*, time_t>::const_iterator TNTRunQueue::GetQueueIterFor(Player* player) {
     return _queue.find(player);
 }
 
@@ -64,7 +64,15 @@ void TNTRunQueue::Handle() {
     }
 }
 
-uint32 TNTRunQueue::GetQueueTime(Player* player) {
+int TNTRunQueue::GetRemainingSeconds() {
+    return (_queueDelay - _timer.elapsed) / 1000;
+}
+
+bool TNTRunQueue::IsTimerRunning() {
+    return _timer.enabled;
+}
+
+time_t TNTRunQueue::GetQueueTime(Player* player) {
     auto it = GetQueueIterFor(player);
     if (it == _queue.end())
         return 0;

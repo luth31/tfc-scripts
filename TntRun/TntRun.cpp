@@ -12,6 +12,9 @@
 // Start the event, called by TNTRunMgr
 void TNTRun::Start(std::vector<Player*> players) {
     _info.players.insert(_info.players.end(), players.begin(), players.end());
+    for (auto player : _info.players) {
+        AntiAFK_data.insert({ player, std::make_pair(player->GetPosition(), 0) });
+    }
     SpawnObjects();
     SummonPlayers();
     warmupTimer = 0;
@@ -29,9 +32,33 @@ void TNTRun::Stop() {
     for (auto player : _info.spectators) {
         RecallPlayer(player);
     }
+    AntiAFK_data.clear();
     _info.players.clear();
     _info.spectators.clear();
     _objects.clear();
+}
+
+uint32 TNTRun::GetAliveCount() {
+    return _info.players.size();
+}
+
+void TNTRun::CheckAFK(uint32 diff) {
+    for (auto& player_data : AntiAFK_data) {
+        auto player = player_data.first;
+        auto& position = player_data.second.first;
+        auto& timer = player_data.second.second;
+        if (player->GetPosition() == position) {
+            timer += diff;
+        }
+        else {
+            timer = 0;
+            position = player->GetPosition();
+        }
+        if (timer >= _settings.anti_afk) {
+            player_data.first->GetMotionMaster()->MoveJump(player->GetPosition(), 1, 1);
+            timer = 0;
+        }
+    }
 }
 
 // Updates settings, called by TNTRunMgr
@@ -51,6 +78,7 @@ void TNTRun::SummonPlayers() {
 }
 
 void TNTRun::RecallPlayer(Player* player) {
+    player->RemoveAura(_settings.pacify_spell);
     player->Recall();
     if (player->isDead())
         player->ResurrectPlayer(1.0f);
@@ -129,9 +157,6 @@ void TNTRun::AnnounceToParticipants(std::string msg) {
     }
 }
 
-//void TNTRun::Check
-
-// 
 void TNTRun::RunChecks(uint32 diff) {
     // Warmup time checks
     if (sTNTRunMgr->GetEventState() == State::EVENT_STARTING) {
@@ -151,6 +176,7 @@ void TNTRun::RunChecks(uint32 diff) {
     else if (sTNTRunMgr->GetEventState() == State::EVENT_INPROGRESS) {
         CheckWinCondition();
         CheckPlayersPos();
+        CheckAFK(diff);
     }
 }
 
@@ -159,8 +185,9 @@ void TNTRun::CheckWinCondition() {
     if (_info.players.size() != 1)
         return;
     auto it = _info.players.begin();
+    std::string win_msg = Trinity::StringFormat("|cffff0000%s|r won the TNT Run event!", (*it)->GetName());
     AnnounceToParticipants(Trinity::StringFormat("|cffff0000%s|r won the event!", (*it)->GetName()));
-    sWorld->SendWorldText(3, Trinity::StringFormat("|cffff0000%s|r won the TNT Run event!", (*it)->GetName()));
+    sWorld->SendWorldText(3, win_msg.c_str());
     (*it)->AddItem(_settings.reward_entry, _settings.reward_count);
     ReportState(State::EVENT_FINISHED, "Event completed.");
 }
