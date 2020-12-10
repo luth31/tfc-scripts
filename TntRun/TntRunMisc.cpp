@@ -103,6 +103,7 @@ bool TNTRunQueueNPC::tntrun_queuer_ai::GossipSelect(Player* player, uint32 /*men
         default:
             player->GetSession()->SendAreaTriggerMessage("|cffff0000mUnknown error. Report to devs!|r");
         }
+        break;
     case 2:
         result = sTNTRunMgr->AddToQueue(player);
         switch (result) {

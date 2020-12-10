@@ -38,9 +38,9 @@ void TNTRunMgr::LoadSettings() {
     _settings.reward_entry = sCustomCfg->GetUInt32("tntrun.reward.entry", 300000);
     _settings.pacify_spell = sCustomCfg->GetUInt32("tntrun.pacify.id", 60778);
     _settings.anti_afk = sCustomCfg->GetUInt32("tntrun.antiafk.timer", 3000);
-    _playground.maxX = (_settings.sizeX * _settings.offsetX / 2) + 150;
-    _playground.maxY = (_settings.sizeY * _settings.offsetY / 2) + 150;
-    _playground.maxZ = (_settings.levels * _settings.offsetZ) + 150;
+    _playground.maxX = (_settings.sizeX * _settings.offsetX / 2) + sCustomCfg->GetDouble("tntrun.bounds.x", 150);
+    _playground.maxY = (_settings.sizeY * _settings.offsetY / 2) + sCustomCfg->GetDouble("tntrun.bounds.y", 150);;
+    _playground.maxZ = (_settings.levels * _settings.offsetZ) + sCustomCfg->GetDouble("tntrun.bounds.z", 150);;
     Position temp = _settings.origin;
     temp.m_positionX += _settings.offsetX * (_settings.sizeX - 1);
     temp.m_positionY += _settings.offsetY * (_settings.sizeY - 1);
